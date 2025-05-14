@@ -1,0 +1,13 @@
+body {
+    background-color: #f4f4f4;
+}
+
+.navbar {
+    background-color: #333;
+}
+
+.container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+}

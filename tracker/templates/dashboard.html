@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Dashboard Content -->
+<div class="container mt-5">
+    <h2 class="text-center">Welcome to Your Crypto Dashboard</h2>
+
+    <div class="row mt-4">
+        <!-- Coin Tracking Form -->
+        <div class="col-md-6">
+            <h3>Track a New Coin</h3>
+            <form method="post">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <button type="submit" class="btn btn-success">Track Coin</button>
+            </form>
+
+            {% if messages %}
+                <ul class="messages mt-3">
+                    {% for message in messages %}
+                        <li class="alert alert-{{ message.tags }}">{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+
+        <!-- Tracked Coins List -->
+        <div class="col-md-6">
+            <h3>Your Tracked Coins:</h3>
+            <ul class="coin-list list-group" id = 'tracked-coins'>
+                {% for coin in coins %}
+                    <li id="coin-{{ coin.id }}" class="list-group-item d-flex justify-content-between align-items-center">
+                        <strong>{{ coin.coin_name|capfirst }}</strong>:
+                        <span id="{{ coin.coin_name }}-price">Loading...</span>
+                        <button
+                            class="btn btn-sm btn-danger delete-coin-button"
+                            data-coin-id="{{ coin.id }}"
+                        >Delete</button>
+                    </li>
+                {% empty %}
+                    <li class="list-group-item">You are not tracking any coins yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    const socket = new WebSocket(`ws://${window.location.host}/ws/crypto/`);
+
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        for (const coin in data) {
+            const price = data[coin].usd;
+            const priceSpan = document.getElementById(`${coin}-price`);
+            if (priceSpan) {
+                priceSpan.innerText = `$${price}`;
+            }
+        }
+    };
+
+    socket.onopen = function() {
+        console.log('WebSocket connected!');
+    };
+
+    socket.onerror = function(err) {
+        console.error('WebSocket error:', err);
+    };
+</script>
+
+<script>
+// Helper to read the CSRF token cookie
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    for (const cookie of document.cookie.split(';')) {
+      const [key, val] = cookie.trim().split('=');
+      if (key === name) { cookieValue = decodeURIComponent(val); break; }
+    }
+  }
+  return cookieValue;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const csrftoken = getCookie('csrftoken');
+
+  document.querySelectorAll('.delete-coin-button').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      const coinId = btn.dataset.coinId;
+
+      fetch("{% url 'delete_coin_ajax' %}", {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': csrftoken,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({coin_id: coinId}),
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          // Remove the <li> entirely
+          const li = document.getElementById(`coin-${data.coin_id}`);
+          if (li) li.remove();
+        } else {
+          console.error('Delete failed', data);
+        }
+      })
+      .catch(err => console.error('AJAX error', err));
+    });
+  });
+});
+</script>
+
+{% endblock %}
